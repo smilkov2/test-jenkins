@@ -1,0 +1,279 @@
+pipeline {
+    agent any
+    environment {
+        def landscape = 'ae1'  // replace with landscape where script needs to be deployed
+        def urlDi = "https://api.${landscape}.hana.ondemand.com/monitoring/v1/accounts/sapwebide/apps/di/metrics"
+        def urlDibuilder = "https://api.${landscape}.hana.ondemand.com/monitoring/v1/accounts/sapwebide/apps/dibuilder/metrics"
+        def urlFeaturediscovery = "https://api.${landscape}.hana.ondemand.com/monitoring/v1/accounts/sapwebide/apps/featurediscovery/metrics"
+        def getMetricsErrorDi = 'False'
+        def getMetricsErrorDiB = 'False'
+        def getMetricsErrorfd = 'False'
+        def critical_metrics = 0
+        def GenSlackMessage = """
+         
+##################################################################
+
+Landscape ${landscape.toUpperCase()}
+Build: ${BUILD_URL}
+"""
+
+    } 
+    stages {
+        stage('Parallel stages') {
+            parallel {
+                stage('Di metrics'){ 
+                    steps {
+                        script {
+                            try {
+                                for (i=0; i<3; i++){
+                                    response_Di = httpRequest url: "${urlDi}",
+                                    acceptType: 'APPLICATION_JSON',  
+                                    authentication: 'puser',
+                                    timeout: 30,
+                                    validResponseCodes: "100:599",
+                                    responseHandle: "LEAVE_OPEN"
+                                    status_di = response_Di.status
+                                    
+                                    if (status_di == 200) {
+                                        Di_json = response_Di.content
+                                        Di_jsonObj = readJSON text: Di_json
+                                        response_Di.close()
+                                        break
+                                    } 
+                                    else {
+                                        sleep 3               
+                                    }
+                                } 
+                            } 
+                            catch (error) {
+                                getMetricsErrorDi = 'True'
+                                currentBuild.result = 'FAILURE'
+                                errorMessageDi = error.getMessage()
+                                //slackSend color: 'warning', message: "${GenSlackMessage} \nThe HTTP request for Di failed with the following error message: ${errorMessageDi}"
+                                println "${GenSlackMessage} \nThe HTTP request for Di failed with the following error message: ${errorMessageDi}"
+                                status_di = "error"
+                            }
+                            
+                            if (getMetricsErrorDi == 'False'){
+                                if (status_di != 200) {
+                                    //slackSend color: 'warning', message: "${GenSlackMessage}\nSomething went wrong with the GET request for Di. HTTP Error: ${status_di}"
+                                    println "${GenSlackMessage}\nSomething went wrong with the GET request for Di. HTTP Error: ${status_di}"
+                                    unstable("Something went wrong with the GET request for Di. HTTP Error: ${status_di}")
+                                }
+                            }    
+                        }
+                    }
+                }
+                stage('DiBuilder metrics') {
+                    steps {
+                        script {
+                            try {
+                                for (x=0; x<3; x++){
+                                    response_DiB = httpRequest url: "${urlDibuilder}",
+                                    acceptType: 'APPLICATION_JSON',  
+                                    authentication: 'puser',
+                                    timeout: 30,
+                                    validResponseCodes: "100:599",
+                                    responseHandle: "LEAVE_OPEN"
+                                    status_DiB = response_DiB.status
+                                            
+                                    if (status_DiB == 200) {
+                                        DiBuilder_json = response_DiB.content
+                                        DiBuilder_jsonObj = readJSON text: DiBuilder_json
+                                        response_DiB.close()
+                                        break
+                                    } 
+                                    else {
+                                        sleep 3
+                                            
+                                    }
+                                } 
+                            } 
+                            catch (error) {
+                                getMetricsErrorDiB = 'True'
+                                currentBuild.result = 'FAILURE'
+                                errorMessageDiB = error.getMessage()
+                                //slackSend color: 'warning', message: "${GenSlackMessage} \nThe HTTP request for DiBuilder failed with the following error message: ${errorMessageDiB}"
+                                println "${GenSlackMessage} \nThe HTTP request for DiBuilder failed with the following error message: ${errorMessageDiB}"
+                                status_DiB = "error"
+                            }
+                            if (getMetricsErrorDiB == 'False'){
+                                if (status_DiB != 200) {
+                                    //slackSend color: 'warning', message: "${GenSlackMessage} \nSomething went wrong with the GET request for DiBuilder. HTTP Error: ${status_DiB}"
+                                    println "${GenSlackMessage} \nSomething went wrong with the GET request for DiBuilder. HTTP Error: ${status_DiB}"
+                                    unstable("Something went wrong with the GET request for DiBuilder. HTTP Error: ${status_DiB}")
+                                    
+                                }
+                            }    
+                        }
+                    }
+                }
+                stage('Featurediscovery metrics'){ 
+                    steps {
+                        script {
+                            try {
+                                for (a=0; a<3; a++){
+                                    response_fd = httpRequest url: "${urlFeaturediscovery}",
+                                    acceptType: 'APPLICATION_JSON',  
+                                    authentication: 'puser',
+                                    timeout: 30,
+                                    validResponseCodes: "100:599",
+                                    responseHandle: "LEAVE_OPEN"
+                                    status_fd = response_fd.status
+                                        
+                                    if (status_fd == 200) {
+                                        fd_json = response_fd.content
+                                        fd_jsonObj = readJSON text: fd_json
+                                        response_fd.close()
+                                        break
+                                    } 
+                                    else {
+                                        sleep 3
+                                        
+                                    }
+                                } 
+                            } 
+                            catch (error) {
+                                getMetricsErrorfd = 'True'
+                                currentBuild.result = 'FAILURE'
+                                errorMessageFd = error.getMessage()
+                                //slackSend color: 'warning', message: "${GenSlackMessage} \nThe HTTP request for FeaturedDiscovery failed with the following error message: ${errorMessageFd}"
+                                println "${GenSlackMessage} \nThe HTTP request for FeaturedDiscovery failed with the following error message: ${errorMessageFd}"
+                                status_fd = "error"
+                            }
+                            if (getMetricsErrorfd == 'False'){
+                                if (status_fd != 200) {
+                                    //slackSend color: 'warning', message: "${GenSlackMessage} \nSomething went wrong with the GET request for FeaturedDiscovery. HTTP Error: ${status_fd}"
+                                    println "${GenSlackMessage} \nSomething went wrong with the GET request for FeaturedDiscovery. HTTP Error: ${status_fd}"
+                                    unstable("Something went wrong with the GET request for FeaturedDiscovery. HTTP Error: ${status_fd}")
+                                        
+                                }
+                            }    
+                        }
+                    }
+                }
+            }
+        }
+        stage('Checking metrics') {
+                steps {
+                    script {                                                                   
+                        emailext body: 'test body', subject: 'Jenkins test email', to: 'svetoslav.milkov'
+                        sh "if [ -f state_di ]; then : ;else echo -n '[Ok]' > state_di;fi"       // in these files we store the state of the applications from the previous build
+                        sh "if [ -f state_diB ]; then : ;else echo -n '[Ok]' > state_diB;fi"     // if the script is ran for the first time we create them with [Ok] initial state 
+                        sh "if [ -f state_fd ]; then : ;else echo -n '[Ok]' > state_fd;fi"       // in order to prevent the script to needlessy message us in slack with the initial state
+
+                        if (landscape == "ae1") {    
+                            subaccount="ec4db9c5-5ec2-40ae-8604-569a18e5ed16"  // the cockpit accounts in the different landscapes have different subaccount IDs which are neccessery 
+                        }                                                      // for the link in the slack message leading to the app with critical metrics
+                        else if (landscape == "sa1"){
+                            subaccount="7c9d0133-3c3d-4fec-a248-49e5197bbd15"
+                        }
+                        
+                        if (status_di == 200) {
+                            
+                            state_di = "${Di_jsonObj.state}"
+                            previous_state = readFile("state_di")
+                            message = "One of the VMs hosting the ${Di_jsonObj.application.toString().replaceAll("\\W","")} application is in state ${state_di}"
+                            println "[INFO] Di state is ${state_di}"
+
+                            if (state_di == "[Ok]") {                         //this if statemenet is responsible for informing us if an application has went from critical to ok state
+                                
+                                if (previous_state != state_di) {
+                                    
+                                    //slackSend color: 'warning', message: "${GenSlackMessage}\n${message}\nhttps://account.${landscape}.hana.ondemand.com/neo/#/globalaccount/sapWebIDE${landscape.toUpperCase()}/neosubaccount/${subaccount}/app/${Di_jsonObj.application.toString().replaceAll("\\W","")}/processes"   
+                                    println "${GenSlackMessage}\n${message}\nhttps://account.${landscape}.hana.ondemand.com/neo/#/globalaccount/sapWebIDE${landscape.toUpperCase()}/neosubaccount/${subaccount}/app/${Di_jsonObj.application.toString().replaceAll("\\W","")}/processes"                                    
+                                    sh "echo -n ${state_di} > state_di"
+                                }
+                            }
+                            else if (state_di == "[Critical]") {      //replace with (state == '[Warning]' || state == '[Critical]' || state == '[Stale]') once the constant warning state is fixed
+                                
+                                critical_metrics = 1
+                                unstable("One of the metrics of ${Di_jsonObj.application.toString().replaceAll("\\W","")} is above the predifined thresholds")
+                                
+                                if (previous_state != state_di) {           //this is if statement is responsible to stop spamming notifications in slack if the app state remains in critical for multiple builds
+
+                                    //slackSend color: 'warning', message: "${GenSlackMessage}\n${message}\nhttps://account.${landscape}.hana.ondemand.com/neo/#/globalaccount/sapWebIDE${landscape.toUpperCase()}/neosubaccount/${subaccount}/app/${Di_jsonObj.application.toString().replaceAll("\\W","")}/processes"   
+                                    println "${GenSlackMessage}\n${message}\nhttps://account.${landscape}.hana.ondemand.com/neo/#/globalaccount/sapWebIDE${landscape.toUpperCase()}/neosubaccount/${subaccount}/app/${Di_jsonObj.application.toString().replaceAll("\\W","")}/processes"                                    
+                                    unstable("One of the metrics of ${Di_jsonObj.application.toString().replaceAll("\\W","")} is above the predifined thresholds")
+                                    sh "echo -n ${state_di} > state_di"
+                                }
+                            }
+                        }
+                        else {
+                            unstable("Cant check the metrics of Di as the HTTP request has failled")
+                        }
+                        if (status_DiB == 200) {
+
+                            state_diBuilder = "${DiBuilder_jsonObj.state}"
+                            previous_state = readFile("state_diB")
+                            message = "One of the VMs hosting the ${DiBuilder_jsonObj.application.toString().replaceAll("\\W","")} application is in state ${state_diBuilder}"
+                            println "[INFO] DiBuilder state is ${state_diBuilder}"
+
+                            if (state_diBuilder == "[Ok]") {
+
+                                if (previous_state != state_diBuilder) {
+
+                                    //slackSend color: 'warning', message: "${GenSlackMessage}\n${message}\nhttps://account.${landscape}.hana.ondemand.com/neo/#/globalaccount/sapWebIDE${landscape.toUpperCase()}/neosubaccount/${subaccount}/app/${DiBuilder_jsonObj.application.toString().replaceAll("\\W","")}/processes"
+                                    println "${GenSlackMessage}\n${message}\nhttps://account.${landscape}.hana.ondemand.com/neo/#/globalaccount/sapWebIDE${landscape.toUpperCase()}/neosubaccount/${subaccount}/app/${DiBuilder_jsonObj.application.toString().replaceAll("\\W","")}/processes"                                    
+                                    sh "echo -n ${state_diBuilder} > state_diB"
+                                }
+                            }
+                            else if (state_diBuilder == "[Critical]") {      //replace with (state == '[Warning]' || state == '[Critical]' || state == '[Stale]') once  the constant warning state is fixed
+                                
+                                critical_metrics = critical_metrics + 1
+                                unstable("One of the metrics of ${DiBuilder_jsonObj.application.toString().replaceAll("\\W","")} is above the predifined thresholds")
+                               
+                                if (previous_state !=  state_diBuilder) {
+                                
+                                    //slackSend color: 'warning', message: "${GenSlackMessage}\n${message}\nhttps://account.${landscape}.hana.ondemand.com/neo/#/globalaccount/sapWebIDE${landscape.toUpperCase()}/neosubaccount/${subaccount}/app/${DiBuilder_jsonObj.application.toString().replaceAll("\\W","")}/processes"
+                                    println "${GenSlackMessage}\n${message}\nhttps://account.${landscape}.hana.ondemand.com/neo/#/globalaccount/sapWebIDE${landscape.toUpperCase()}/neosubaccount/${subaccount}/app/${DiBuilder_jsonObj.application.toString().replaceAll("\\W","")}/processes"                                    
+                                    unstable("One of the metrics of ${DiBuilder_jsonObj.application.toString().replaceAll("\\W","")} is above the predifined thresholds")
+                                    sh "echo -n ${state_diBuilder} > state_diB"
+                                }    
+                            }
+                        }
+                        else {
+                            unstable("Cant check the metrics of DiBuilder as the HTTP request has failled")
+                        }
+                        if (status_fd == 200) {
+
+                            state_fd = "${fd_jsonObj.state}"
+                            previous_state = readFile("state_fd")
+                            message = "One of the VMs hosting the ${fd_jsonObj.application.toString().replaceAll("\\W","")} application is in state ${state_fd}"
+                            println "[INFO] FeatureDiscovery state is ${state_fd}"
+
+                            if (state_fd == "[Ok]") {
+
+                                if (previous_state != state_fd) {
+
+                                    //slackSend color: 'warning', message: "${GenSlackMessage}\n${message}\nhttps://account.${landscape}.hana.ondemand.com/neo/#/globalaccount/sapWebIDE${landscape.toUpperCase()}/neosubaccount/${subaccount}/app/${fd_jsonObj.application.toString().replaceAll("\\W","")}/processes"    
+                                    println "${GenSlackMessage}\n${message}\nhttps://account.${landscape}.hana.ondemand.com/neo/#/globalaccount/sapWebIDE${landscape.toUpperCase()}/neosubaccount/${subaccount}/app/${fd_jsonObj.application.toString().replaceAll("\\W","")}/processes"                                    
+                                    sh "echo -n ${state_fd } > state_fd"
+                                }
+                            }
+
+                            else if (state_fd == "[Critical]") {      //replace with (state == '[Warning]' || state == '[Critical]' || state == '[Stale]') once fix the constant warning state
+                                
+                                critical_metrics = critical_metrics + 1
+                                unstable("One of the metrics of ${fd_jsonObj.application.toString().replaceAll("\\W","")} is above the predifined thresholds")
+                                
+                                if (previous_state != state_fd) {
+                                    
+                                    //slackSend color: 'warning', message: "${GenSlackMessage}\n${message}\nhttps://account.${landscape}.hana.ondemand.com/neo/#/globalaccount/sapWebIDE${landscape.toUpperCase()}/neosubaccount/${subaccount}/app/${fd_jsonObj.application.toString().replaceAll("\\W","")}/processes"    
+                                    println "${GenSlackMessage}\n${message}\nhttps://account.${landscape}.hana.ondemand.com/neo/#/globalaccount/sapWebIDE${landscape.toUpperCase()}/neosubaccount/${subaccount}/app/${fd_jsonObj.application.toString().replaceAll("\\W","")}/processes"                                    
+                                    unstable("One of the metrics of ${fd_jsonObj.application.toString().replaceAll("\\W","")} is above the predifined thresholds")
+                                    sh "echo -n ${state_fd } > state_fd"
+                                }
+                            }
+                        }
+                        else {
+                            unstable("Cant check the metrics of featureDiscovery as the HTTP request has failled")
+                        }
+                        if (critical_metrics == 3) {
+                            currentBuild.result = 'FAILURE'
+                        }                    
+                    }  
+                }
+        }   
+    }
+}
